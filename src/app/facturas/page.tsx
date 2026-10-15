@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -56,6 +57,9 @@ export default function FacturasPage() {
     const [registros, setRegistros] = useState<Registro[]>([])
     const [vista, setVista] = useState<"lista" | "nueva">("lista")
 
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+    const [nombreUsuario, setNombreUsuario] = useState("")
+
     // Formulario
     const [numeroBus, setNumeroBus] = useState("")
     const [fecha, setFecha] = useState("")
@@ -79,6 +83,7 @@ export default function FacturasPage() {
         loadRegistros()
     }, [])
 
+
     const loadRegistros = async () => {
         const supabase = createClient()
         const {
@@ -87,6 +92,27 @@ export default function FacturasPage() {
         if (!user) {
             router.push("/login")
             return
+        }
+
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .single()
+
+        setNombreUsuario(profile?.full_name || user.email?.split("@")[0] || "")
+
+        const { data: conductor } = await supabase
+            .from("conductores")
+            .select("foto_url, nombres, apellidos")
+            .eq("user_id", user.id)
+            .single()
+
+        if (conductor?.foto_url) {
+            setAvatarUrl(conductor.foto_url)
+        }
+        if (conductor?.nombres) {
+            setNombreUsuario(`${conductor.nombres} ${conductor.apellidos}`)
         }
 
         const { data } = await supabase
@@ -498,82 +524,132 @@ export default function FacturasPage() {
                     </div>
                 </div>
 
-                {/* Preview tipo factura */}
+                {/* Preview minimalista */}
                 <div>
                     <p className="text-sm text-muted-foreground mb-3">Vista previa</p>
                     <div
                         ref={previewRef}
-                        className="bg-white text-black rounded-lg border shadow-sm p-6 space-y-4"
+                        className="bg-white text-neutral-900 rounded-xl border border-neutral-200 shadow-sm overflow-hidden"
                     >
-                        <div className="bg-[#1e3a5f] text-white text-center py-3 rounded">
-                            <h2 className="font-bold text-sm tracking-wide">
-                                FACTURA / CONTROL DE GASTOS DE VIAJE
-                            </h2>
-                            <p className="text-xs opacity-80 mt-0.5">
-                                Facturas TBS Burbujas
-                            </p>
+                        {/* Header */}
+                        <div className="px-6 pt-6 pb-4 border-b border-neutral-100">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-[11px] uppercase tracking-[0.12em] text-neutral-400 font-medium">
+                                        Control de gastos de viaje
+                                    </p>
+                                    <h2 className="text-lg font-semibold tracking-tight mt-1">
+                                        Facturas TBS Burbujas
+                                    </h2>
+                                </div>
+
+                                {/* Avatar */}
+                                <div className="flex items-center gap-2.5">
+                                    <div className="relative w-10 h-10 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200 shrink-0">
+                                        {avatarUrl ? (
+                                            <Image
+                                                src={avatarUrl}
+                                                alt={nombreUsuario}
+                                                fill
+                                                className="object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-neutral-400 text-sm font-medium">
+                                                {nombreUsuario?.charAt(0)?.toUpperCase() || "?"}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="text-right hidden sm:block">
+                                        <p className="text-xs font-medium text-neutral-800 leading-tight">
+                                            {nombreUsuario || "Usuario"}
+                                        </p>
+                                        <p className="text-[10px] text-neutral-400">Responsable</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="text-sm space-y-1">
-                            <div className="flex justify-between border-b border-dashed py-1">
-                                <span className="text-gray-600">Número de bus:</span>
-                                <span className="font-medium">{numeroBus || "—"}</span>
+                        {/* Datos del viaje */}
+                        <div className="px-6 py-4 grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <p className="text-[11px] text-neutral-400 mb-0.5">Bus</p>
+                                <p className="font-medium">{numeroBus || "—"}</p>
                             </div>
-                            <div className="flex justify-between border-b border-dashed py-1">
-                                <span className="text-gray-600">Fecha:</span>
-                                <span className="font-medium">{fecha}</span>
+                            <div>
+                                <p className="text-[11px] text-neutral-400 mb-0.5">Fecha</p>
+                                <p className="font-medium">{fecha || "—"}</p>
                             </div>
-                            <div className="flex justify-between border-b border-dashed py-1">
-                                <span className="text-gray-600">Costo del viaje:</span>
-                                <span className="font-medium">{formatCOP(costoViaje)}</span>
+                            <div className="text-right">
+                                <p className="text-[11px] text-neutral-400 mb-0.5">Costo del viaje</p>
+                                <p className="font-semibold">{formatCOP(costoViaje)}</p>
                             </div>
                         </div>
 
-                        <div>
-                            <div className="bg-[#1e3a5f] text-white text-center text-xs font-semibold py-1.5 rounded-t">
-                                DETALLE DE GASTOS
-                            </div>
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-sky-100">
-                                        <th className="text-left py-1.5 px-2 font-medium">
-                                            Concepto
-                                        </th>
-                                        <th className="text-right py-1.5 px-2 font-medium">
-                                            Costo ($)
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        {/* Tabla de gastos */}
+                        <div className="px-6 pb-4">
+                            <div className="rounded-lg border border-neutral-100 overflow-hidden">
+                                <div className="bg-neutral-50 px-3 py-2 flex justify-between text-[11px] uppercase tracking-wide text-neutral-400 font-medium">
+                                    <span>Concepto</span>
+                                    <span>Valor</span>
+                                </div>
+                                <div className="divide-y divide-neutral-50">
                                     {items
                                         .filter((i) => i.concepto.trim())
                                         .map((item) => (
-                                            <tr key={item.id} className="border-b border-gray-100">
-                                                <td className="py-1.5 px-2">{item.concepto}</td>
-                                                <td className="py-1.5 px-2 text-right">
+                                            <div
+                                                key={item.id}
+                                                className="px-3 py-2.5 flex justify-between text-sm"
+                                            >
+                                                <span className="text-neutral-600">{item.concepto}</span>
+                                                <span className="font-medium tabular-nums">
                                                     {formatCOP(item.costo)}
-                                                </td>
-                                            </tr>
+                                                </span>
+                                            </div>
                                         ))}
-                                </tbody>
-                            </table>
-                            <div className="bg-green-100 flex justify-between py-2 px-2 text-sm font-semibold">
-                                <span>SUMATORIA DE GASTOS</span>
-                                <span>{formatCOP(totalGastos)}</span>
+                                    {items.filter((i) => i.concepto.trim()).length === 0 && (
+                                        <div className="px-3 py-6 text-center text-sm text-neutral-300">
+                                            Sin gastos registrados
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        <div className="bg-sky-50 flex justify-between py-2 px-2 text-sm font-medium rounded">
-                            <span>Saldo del viaje (costo − gastos)</span>
-                            <span>{formatCOP(saldo)}</span>
+                        {/* Totales */}
+                        <div className="px-6 pb-5 space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-neutral-500">Sumatoria de gastos</span>
+                                <span className="font-medium tabular-nums">
+                                    {formatCOP(totalGastos)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center rounded-lg bg-neutral-50 px-3 py-2.5">
+                                <span className="text-sm font-medium">Saldo del viaje</span>
+                                <span
+                                    className={`text-sm font-semibold tabular-nums ${saldo >= 0 ? "text-emerald-600" : "text-red-600"
+                                        }`}
+                                >
+                                    {formatCOP(saldo)}
+                                </span>
+                            </div>
                         </div>
 
+                        {/* Observaciones */}
                         {observaciones && (
-                            <div className="text-sm">
-                                <p className="text-gray-600 mb-1">Observaciones:</p>
-                                <p className="bg-sky-50 rounded p-2">{observaciones}</p>
+                            <div className="px-6 pb-5">
+                                <p className="text-[11px] text-neutral-400 mb-1">Observaciones</p>
+                                <p className="text-sm text-neutral-600 leading-relaxed">
+                                    {observaciones}
+                                </p>
                             </div>
                         )}
+
+                        {/* Footer */}
+                        <div className="px-6 py-3 border-t border-neutral-100 bg-neutral-50/80">
+                            <p className="text-[10px] text-neutral-400 text-center">
+                                Facturas TBS Burbujas · Documento de control interno
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
