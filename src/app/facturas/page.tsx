@@ -11,6 +11,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
     Card,
     CardContent,
     CardDescription,
@@ -23,7 +29,10 @@ import {
     Trash2,
     FileText,
     Download,
+    ChevronDown,
+    FileDown,
     ImageIcon,
+    Share2,
     ArrowLeft,
 } from "lucide-react"
 import Link from "next/link"
@@ -133,6 +142,14 @@ export default function FacturasPage() {
         ...items.filter((i) => i.concepto.trim()),
     ]
 
+    // Exportar
+    const [exportando, setExportando] = useState(false)
+    const [mostrarCompartir, setMostrarCompartir] = useState(false)
+    const [ultimoArchivo, setUltimoArchivo] = useState<{
+        tipo: "pdf" | "png"
+        nombre: string
+    } | null>(null)
+
     useEffect(() => {
         setFecha(new Date().toISOString().split("T")[0])
         loadRegistros()
@@ -179,15 +196,22 @@ export default function FacturasPage() {
             setNombreUsuario(`${conductor.nombres} ${conductor.apellidos}`)
         }
 
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from("facturas_viaje")
             .select("*")
             .order("created_at", { ascending: false })
             .limit(50)
 
-        setRegistros((data || []) as Registro[])
+        if (error) {
+            console.error("Error cargando facturas:", error)
+            toast.error("No se pudieron cargar las facturas", {
+                description: error.message,
+            })
+            setRegistros([])
+        } else {
+            setRegistros((data || []) as Registro[])
+        }
 
-        setRegistros(data || [])
         setLoading(false)
     }
 
@@ -229,24 +253,23 @@ export default function FacturasPage() {
         return `GV-${y}${m}${d}-${r}`
     }
 
-    const handleGuardar = async () => {
+    const handleGuardarYExportar = async (formato: "pdf" | "png") => {
         if (!numeroBus.trim()) {
             toast.error("Ingresa el número de bus")
             return
         }
 
-        setSaving(true)
+        setExportando(true)
         const supabase = createClient()
         const {
             data: { user },
         } = await supabase.auth.getUser()
-        if (!user) return
+        if (!user) {
+            setExportando(false)
+            return
+        }
 
         const numero = generarNumero()
-
-        const itemsValidos = items.filter(
-            (i) => i.concepto.trim() && i.costo >= 0
-        )
 
         const itemsParaGuardar: ItemGuardado[] = [
             ...items
@@ -260,21 +283,18 @@ export default function FacturasPage() {
                 costo: pagoResponsable,
             })
         }
-
         if (tieneSegundoChofer && pagoSegundoChofer > 0) {
             itemsParaGuardar.push({
                 concepto: `Pago segundo chofer: ${nombreSegundoChofer.trim() || "—"}`,
                 costo: pagoSegundoChofer,
             })
         }
-
         if (incluyeAyudante && pagoAyudante > 0) {
             itemsParaGuardar.push({
                 concepto: "Pago a Auxiliar",
                 costo: pagoAyudante,
             })
         }
-
 
         const { data: factura, error } = await supabase
             .from("facturas_viaje")
@@ -301,12 +321,30 @@ export default function FacturasPage() {
 
         if (error || !factura) {
             toast.error("Error al guardar", { description: error?.message })
-            setSaving(false)
+            setExportando(false)
             return
         }
 
         toast.success("Factura guardada", { description: numero })
-        setSaving(false)
+
+        // Exportar
+        try {
+            if (formato === "pdf") {
+                await exportPDF()
+            } else {
+                await exportImagen()
+            }
+            setUltimoArchivo({
+                tipo: formato,
+                nombre: `factura-${numeroBus || "viaje"}-${fecha || "sin-fecha"}`,
+            })
+            setMostrarCompartir(true)
+        } catch (e) {
+            console.error(e)
+            toast.error("Se guardó, pero falló la exportación")
+        }
+
+        setExportando(false)
         resetForm()
         setVista("lista")
         loadRegistros()
@@ -862,8 +900,8 @@ export default function FacturasPage() {
                             <span className="text-sm font-medium">Saldo del viaje</span>
                             <span
                                 className={`text-sm font-semibold tabular-nums ${Number(facturaActual.saldo) >= 0
-                                        ? "text-emerald-600"
-                                        : "text-red-600"
+                                    ? "text-emerald-600"
+                                    : "text-red-600"
                                     }`}
                             >
                                 {formatCOP(Number(facturaActual.saldo))}
@@ -1253,18 +1291,35 @@ export default function FacturasPage() {
                     </Card>
 
                     <div className="flex flex-wrap gap-2">
-                        <Button onClick={handleGuardar} disabled={saving}>
-                            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar factura
-                        </Button>
-                        <Button type="button" variant="outline" onClick={exportPDF}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Exportar PDF
-                        </Button>
-                        <Button type="button" variant="outline" onClick={exportImagen}>
-                            <ImageIcon className="mr-2 h-4 w-4" />
-                            Exportar imagen
-                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger className="inline-flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground h-9 px-4 text-sm font-medium shadow-xs hover:opacity-90 disabled:opacity-50">
+                                {exportando ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <FileDown className="h-4 w-4" />
+                                )}
+                                Guardar y exportar
+                                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-52">
+                                <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    disabled={exportando}
+                                    onClick={() => handleGuardarYExportar("pdf")}
+                                >
+                                    <FileDown className="mr-2 h-4 w-4" />
+                                    Guardar + PDF
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    disabled={exportando}
+                                    onClick={() => handleGuardarYExportar("png")}
+                                >
+                                    <ImageIcon className="mr-2 h-4 w-4" />
+                                    Guardar + PNG
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </div>
 
@@ -1392,6 +1447,51 @@ export default function FacturasPage() {
                     </div>
                 </div>
             </div>
+            {mostrarCompartir && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="bg-background border rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="rounded-full bg-emerald-500/10 p-2.5">
+                                <Share2 className="h-5 w-5 text-emerald-600" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold">Documento listo</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    {ultimoArchivo?.tipo === "pdf" ? "PDF" : "Imagen"} descargado
+                                    {ultimoArchivo ? `: ${ultimoArchivo.nombre}` : ""}
+                                </p>
+                            </div>
+                        </div>
+
+                        <p className="text-sm text-muted-foreground">
+                            ¿Quieres compartirlo? En el móvil puedes adjuntar el archivo desde
+                            WhatsApp. En el PC se abrirá el chat para enviar el mensaje.
+                        </p>
+
+                        <div className="flex flex-col gap-2">
+                            <Button
+                                className="w-full bg-[#25D366] hover:bg-[#1ebe57] text-white"
+                                onClick={() => {
+                                    const texto = encodeURIComponent(
+                                        `Factura de viaje — Bus ${numeroBus || "—"} — Fecha ${fecha || "—"}\nSaldo: ${formatCOP(saldo)}\nFacturas TBS Burbujas`
+                                    )
+                                    // Abre WhatsApp (app o web)
+                                    window.open(`https://wa.me/?text=${texto}`, "_blank")
+                                }}
+                            >
+                                Compartir por WhatsApp
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => setMostrarCompartir(false)}
+                            >
+                                Cerrar
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
