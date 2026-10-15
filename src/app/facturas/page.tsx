@@ -75,15 +75,20 @@ export default function FacturasPage() {
         }))
     )
 
-    // Pago del responsable (quien crea la factura)
+    // Pago del responsable
     const [pagoResponsable, setPagoResponsable] = useState(0)
     const [pagoResponsableInput, setPagoResponsableInput] = useState("")
 
-    // Segundo chofer (opcional)
+    // Segundo chofer (nombre libre)
     const [tieneSegundoChofer, setTieneSegundoChofer] = useState(false)
-    const [segundoChoferId, setSegundoChoferId] = useState("")
+    const [nombreSegundoChofer, setNombreSegundoChofer] = useState("")
     const [pagoSegundoChofer, setPagoSegundoChofer] = useState(0)
     const [pagoSegundoChoferInput, setPagoSegundoChoferInput] = useState("")
+
+    // Ayudante (opcional, sin nombre)
+    const [incluyeAyudante, setIncluyeAyudante] = useState(false)
+    const [pagoAyudante, setPagoAyudante] = useState(0)
+    const [pagoAyudanteInput, setPagoAyudanteInput] = useState("")
 
     const [conductores, setConductores] = useState<
         { id: string; nombres: string; apellidos: string }[]
@@ -92,14 +97,10 @@ export default function FacturasPage() {
     const totalGastosItems = items.reduce((acc, i) => acc + (i.costo || 0), 0)
     const totalPagos =
         (pagoResponsable || 0) +
-        (tieneSegundoChofer ? pagoSegundoChofer || 0 : 0)
+        (tieneSegundoChofer ? pagoSegundoChofer || 0 : 0) +
+        (incluyeAyudante ? pagoAyudante || 0 : 0)
     const totalGastos = totalGastosItems + totalPagos
     const saldo = costoViaje - totalGastos
-
-    const nombreSegundo =
-        conductores.find((c) => c.id === segundoChoferId)
-            ? `${conductores.find((c) => c.id === segundoChoferId)!.nombres} ${conductores.find((c) => c.id === segundoChoferId)!.apellidos}`
-            : ""
 
     const lineasGastos = [
         ...(pagoResponsable > 0
@@ -113,10 +114,13 @@ export default function FacturasPage() {
         ...(tieneSegundoChofer && pagoSegundoChofer > 0
             ? [
                 {
-                    concepto: `Pago segundo chofer: ${nombreSegundo || "—"}`,
+                    concepto: `Pago segundo chofer: ${nombreSegundoChofer.trim() || "—"}`,
                     costo: pagoSegundoChofer,
                 },
             ]
+            : []),
+        ...(incluyeAyudante && pagoAyudante > 0
+            ? [{ concepto: "Pago a Auxiliar", costo: pagoAyudante }]
             : []),
         ...items.filter((i) => i.concepto.trim()),
     ]
@@ -233,9 +237,7 @@ export default function FacturasPage() {
             (i) => i.concepto.trim() && i.costo >= 0
         )
 
-        const itemsParaGuardar = [
-            ...items.filter((i) => i.concepto.trim()),
-        ]
+        const itemsParaGuardar = [...items.filter((i) => i.concepto.trim())]
 
         if (pagoResponsable > 0) {
             itemsParaGuardar.push({
@@ -246,11 +248,20 @@ export default function FacturasPage() {
             })
         }
 
-        if (tieneSegundoChofer && segundoChoferId && pagoSegundoChofer > 0) {
+        if (tieneSegundoChofer && pagoSegundoChofer > 0) {
             itemsParaGuardar.push({
                 id: "pago-segundo",
-                concepto: `Pago segundo chofer: ${nombreSegundo}`,
+                concepto: `Pago segundo chofer: ${nombreSegundoChofer.trim() || "—"}`,
                 costo: pagoSegundoChofer,
+                es_predefinido: false,
+            })
+        }
+
+        if (incluyeAyudante && pagoAyudante > 0) {
+            itemsParaGuardar.push({
+                id: "pago-ayudante",
+                concepto: "Pago a Auxiliar",
+                costo: pagoAyudante,
                 es_predefinido: false,
             })
         }
@@ -303,9 +314,12 @@ export default function FacturasPage() {
         setPagoResponsable(0)
         setPagoResponsableInput("")
         setTieneSegundoChofer(false)
-        setSegundoChoferId("")
+        setNombreSegundoChofer("")
         setPagoSegundoChofer(0)
         setPagoSegundoChoferInput("")
+        setIncluyeAyudante(false)
+        setPagoAyudante(0)
+        setPagoAyudanteInput("")
         setItems(
             GASTOS_DEFAULT.map((c, i) => ({
                 id: `def-${i}`,
@@ -879,14 +893,18 @@ export default function FacturasPage() {
                         <CardHeader>
                             <CardTitle className="text-lg">Pagos de choferes</CardTitle>
                             <CardDescription>
-                                Pago del responsable y, si aplica, del segundo chofer
+                                Responsable, segundo chofer y ayudante (opcional)
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-5">
-                            {/* Responsable = quien crea la factura */}
+                            {/* Responsable */}
                             <div className="space-y-2">
                                 <Label>Responsable (quien crea la factura)</Label>
-                                <Input value={nombreUsuario || "Usuario"} disabled className="bg-muted" />
+                                <Input
+                                    value={nombreUsuario || "Usuario"}
+                                    disabled
+                                    className="bg-muted"
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label>Paga del responsable</Label>
@@ -910,6 +928,7 @@ export default function FacturasPage() {
                                 />
                             </div>
 
+                            {/* Segundo chofer */}
                             <div className="border-t pt-4 space-y-3">
                                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                                     <input
@@ -918,12 +937,12 @@ export default function FacturasPage() {
                                         onChange={(e) => {
                                             setTieneSegundoChofer(e.target.checked)
                                             if (!e.target.checked) {
-                                                setSegundoChoferId("")
+                                                setNombreSegundoChofer("")
                                                 setPagoSegundoChofer(0)
                                                 setPagoSegundoChoferInput("")
                                             }
                                         }}
-                                        className="rounded border-input"
+                                        className="size-4 rounded border-input accent-primary"
                                     />
                                     Este viaje lleva segundo chofer
                                 </label>
@@ -931,19 +950,12 @@ export default function FacturasPage() {
                                 {tieneSegundoChofer && (
                                     <>
                                         <div className="space-y-2">
-                                            <Label>Segundo chofer</Label>
-                                            <select
-                                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                                value={segundoChoferId}
-                                                onChange={(e) => setSegundoChoferId(e.target.value)}
-                                            >
-                                                <option value="">Seleccionar conductor...</option>
-                                                {conductores.map((c) => (
-                                                    <option key={c.id} value={c.id}>
-                                                        {c.nombres} {c.apellidos}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            <Label>Nombre completo del segundo chofer</Label>
+                                            <Input
+                                                value={nombreSegundoChofer}
+                                                onChange={(e) => setNombreSegundoChofer(e.target.value)}
+                                                placeholder="Ej: Juan Pérez Gómez"
+                                            />
                                         </div>
                                         <div className="space-y-2">
                                             <Label>Paga del segundo chofer</Label>
@@ -964,10 +976,55 @@ export default function FacturasPage() {
                                                     )
                                                 }
                                                 placeholder="$0"
-                                                disabled={!segundoChoferId}
                                             />
                                         </div>
                                     </>
+                                )}
+                            </div>
+
+                            {/* Ayudante */}
+                            <div className="border-t pt-4 space-y-3">
+                                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={incluyeAyudante}
+                                        onChange={(e) => {
+                                            setIncluyeAyudante(e.target.checked)
+                                            if (!e.target.checked) {
+                                                setPagoAyudante(0)
+                                                setPagoAyudanteInput("")
+                                            }
+                                        }}
+                                        className="size-4 rounded border-input accent-primary"
+                                    />
+                                    Incluir pago de ayudante
+                                </label>
+
+                                {incluyeAyudante && (
+                                    <div className="space-y-2">
+                                        <Label>Paga del ayudante</Label>
+                                        <Input
+                                            value={pagoAyudanteInput}
+                                            onChange={(e) => {
+                                                setPagoAyudanteInput(e.target.value)
+                                                setPagoAyudante(parseCOP(e.target.value))
+                                            }}
+                                            onBlur={() =>
+                                                setPagoAyudanteInput(
+                                                    pagoAyudante ? formatCOP(pagoAyudante) : ""
+                                                )
+                                            }
+                                            onFocus={() =>
+                                                setPagoAyudanteInput(
+                                                    pagoAyudante ? String(pagoAyudante) : ""
+                                                )
+                                            }
+                                            placeholder="$0"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            No requiere nombre
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         </CardContent>
