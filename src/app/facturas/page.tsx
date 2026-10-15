@@ -30,11 +30,9 @@ import Link from "next/link"
 
 const GASTOS_DEFAULT = ["Comida", "Hotel", "ACPM", "Parqueo", "Lavado"]
 
-type GastoItem = {
-    id: string
+type ItemGuardado = {
     concepto: string
     costo: number
-    es_predefinido: boolean
 }
 
 type Registro = {
@@ -45,8 +43,17 @@ type Registro = {
     costo_viaje: number
     total_gastos: number
     saldo: number
+    observaciones: string | null
+    responsable_nombre: string | null
+    pago_responsable: number
+    segundo_chofer_nombre: string | null
+    pago_segundo_chofer: number
+    pago_ayudante: number
+    items: ItemGuardado[]
     created_at: string
 }
+
+
 
 export default function FacturasPage() {
     const router = useRouter()
@@ -55,7 +62,8 @@ export default function FacturasPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [registros, setRegistros] = useState<Registro[]>([])
-    const [vista, setVista] = useState<"lista" | "nueva">("lista")
+    const [vista, setVista] = useState<"lista" | "nueva" | "ver">("lista")
+    const [facturaActual, setFacturaActual] = useState<Registro | null>(null)
 
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     const [nombreUsuario, setNombreUsuario] = useState("")
@@ -106,7 +114,7 @@ export default function FacturasPage() {
         ...(pagoResponsable > 0
             ? [
                 {
-                    concepto: `Pago responsable: ${nombreUsuario || "Usuario"}`,
+                    concepto: `Porcentaje Conductor 1: ${nombreUsuario || "Usuario"}`,
                     costo: pagoResponsable,
                 },
             ]
@@ -114,13 +122,13 @@ export default function FacturasPage() {
         ...(tieneSegundoChofer && pagoSegundoChofer > 0
             ? [
                 {
-                    concepto: `Pago segundo chofer: ${nombreSegundoChofer.trim() || "—"}`,
+                    concepto: `Porcentaje Conductor 2: ${nombreSegundoChofer.trim() || "—"}`,
                     costo: pagoSegundoChofer,
                 },
             ]
             : []),
         ...(incluyeAyudante && pagoAyudante > 0
-            ? [{ concepto: "Pago a Auxiliar", costo: pagoAyudante }]
+            ? [{ concepto: "Porcentaje a Auxiliar", costo: pagoAyudante }]
             : []),
         ...items.filter((i) => i.concepto.trim()),
     ]
@@ -140,6 +148,7 @@ export default function FacturasPage() {
             router.push("/login")
             return
         }
+
 
         const { data: profile } = await supabase
             .from("profiles")
@@ -171,10 +180,12 @@ export default function FacturasPage() {
         }
 
         const { data } = await supabase
-            .from("gastos_viaje")
-            .select("id, numero, numero_bus, fecha, costo_viaje, total_gastos, saldo, created_at")
+            .from("facturas_viaje")
+            .select("*")
             .order("created_at", { ascending: false })
             .limit(50)
+
+        setRegistros((data || []) as Registro[])
 
         setRegistros(data || [])
         setLoading(false)
@@ -237,37 +248,36 @@ export default function FacturasPage() {
             (i) => i.concepto.trim() && i.costo >= 0
         )
 
-        const itemsParaGuardar = [...items.filter((i) => i.concepto.trim())]
+        const itemsParaGuardar: ItemGuardado[] = [
+            ...items
+                .filter((i) => i.concepto.trim())
+                .map((i) => ({ concepto: i.concepto.trim(), costo: i.costo })),
+        ]
 
         if (pagoResponsable > 0) {
-            itemsParaGuardar.push({
-                id: "pago-responsable",
+            itemsParaGuardar.unshift({
                 concepto: `Pago responsable: ${nombreUsuario || "Usuario"}`,
                 costo: pagoResponsable,
-                es_predefinido: false,
             })
         }
 
         if (tieneSegundoChofer && pagoSegundoChofer > 0) {
             itemsParaGuardar.push({
-                id: "pago-segundo",
                 concepto: `Pago segundo chofer: ${nombreSegundoChofer.trim() || "—"}`,
                 costo: pagoSegundoChofer,
-                es_predefinido: false,
             })
         }
 
         if (incluyeAyudante && pagoAyudante > 0) {
             itemsParaGuardar.push({
-                id: "pago-ayudante",
                 concepto: "Pago a Auxiliar",
                 costo: pagoAyudante,
-                es_predefinido: false,
             })
         }
 
-        const { data: gasto, error } = await supabase
-            .from("gastos_viaje")
+
+        const { data: factura, error } = await supabase
+            .from("facturas_viaje")
             .insert({
                 numero,
                 numero_bus: numeroBus.trim(),
@@ -276,26 +286,23 @@ export default function FacturasPage() {
                 total_gastos: totalGastos,
                 saldo,
                 observaciones: observaciones || null,
+                responsable_nombre: nombreUsuario || null,
+                pago_responsable: pagoResponsable || 0,
+                segundo_chofer_nombre: tieneSegundoChofer
+                    ? nombreSegundoChofer.trim() || null
+                    : null,
+                pago_segundo_chofer: tieneSegundoChofer ? pagoSegundoChofer || 0 : 0,
+                pago_ayudante: incluyeAyudante ? pagoAyudante || 0 : 0,
+                items: itemsParaGuardar,
                 created_by: user.id,
             })
             .select()
             .single()
 
-        if (error || !gasto) {
+        if (error || !factura) {
             toast.error("Error al guardar", { description: error?.message })
             setSaving(false)
             return
-        }
-
-        if (itemsValidos.length > 0) {
-            await supabase.from("gastos_viaje_items").insert(
-                itemsValidos.map((i) => ({
-                    gasto_viaje_id: gasto.id,
-                    concepto: i.concepto.trim(),
-                    costo: i.costo,
-                    es_predefinido: i.es_predefinido,
-                }))
-            )
         }
 
         toast.success("Factura guardada", { description: numero })
@@ -751,6 +758,143 @@ export default function FacturasPage() {
         )
     }
 
+    // —— VISUALIZADOR DE FACTURA GUARDADA ——
+    if (vista === "ver" && facturaActual) {
+        const itemsVer: ItemGuardado[] = Array.isArray(facturaActual.items)
+            ? facturaActual.items
+            : []
+
+        return (
+            <div className="container mx-auto px-4 py-10 max-w-2xl">
+                <div className="flex items-center justify-between gap-3 mb-8">
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setFacturaActual(null)
+                                setVista("lista")
+                            }}
+                        >
+                            <ArrowLeft className="h-4 w-4 mr-1" />
+                            Volver
+                        </Button>
+                        <div>
+                            <h1 className="text-2xl font-semibold tracking-tight">
+                                {facturaActual.numero}
+                            </h1>
+                            <p className="text-sm text-muted-foreground">
+                                Factura guardada · solo lectura
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mismo diseño minimalista de la preview */}
+                <div className="bg-white text-neutral-900 rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+                    <div className="px-6 pt-6 pb-4 border-b border-neutral-100">
+                        <p className="text-[11px] uppercase tracking-[0.12em] text-neutral-400 font-medium">
+                            Control de gastos de viaje
+                        </p>
+                        <h2 className="text-lg font-semibold tracking-tight mt-1">
+                            Facturas TBS Burbujas
+                        </h2>
+                        {facturaActual.responsable_nombre && (
+                            <p className="text-sm text-neutral-500 mt-2">
+                                Responsable: {facturaActual.responsable_nombre}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="px-6 py-4 grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                            <p className="text-[11px] text-neutral-400 mb-0.5">Bus</p>
+                            <p className="font-medium">{facturaActual.numero_bus || "—"}</p>
+                        </div>
+                        <div>
+                            <p className="text-[11px] text-neutral-400 mb-0.5">Fecha</p>
+                            <p className="font-medium">{facturaActual.fecha}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[11px] text-neutral-400 mb-0.5">Costo del viaje</p>
+                            <p className="font-semibold">
+                                {formatCOP(Number(facturaActual.costo_viaje))}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="px-6 pb-4">
+                        <div className="rounded-lg border border-neutral-100 overflow-hidden">
+                            <div className="bg-neutral-50 px-3 py-2 flex justify-between text-[11px] uppercase tracking-wide text-neutral-400 font-medium">
+                                <span>Concepto</span>
+                                <span>Valor</span>
+                            </div>
+                            <div className="divide-y divide-neutral-50">
+                                {itemsVer.length === 0 ? (
+                                    <div className="px-3 py-6 text-center text-sm text-neutral-300">
+                                        Sin gastos registrados
+                                    </div>
+                                ) : (
+                                    itemsVer.map((item, idx) => (
+                                        <div
+                                            key={idx}
+                                            className="px-3 py-2.5 flex justify-between text-sm"
+                                        >
+                                            <span className="text-neutral-600">{item.concepto}</span>
+                                            <span className="font-medium tabular-nums">
+                                                {formatCOP(Number(item.costo))}
+                                            </span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-6 pb-5 space-y-2">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-neutral-500">Sumatoria de gastos</span>
+                            <span className="font-medium tabular-nums">
+                                {formatCOP(Number(facturaActual.total_gastos))}
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center rounded-lg bg-neutral-50 px-3 py-2.5">
+                            <span className="text-sm font-medium">Saldo del viaje</span>
+                            <span
+                                className={`text-sm font-semibold tabular-nums ${Number(facturaActual.saldo) >= 0
+                                        ? "text-emerald-600"
+                                        : "text-red-600"
+                                    }`}
+                            >
+                                {formatCOP(Number(facturaActual.saldo))}
+                            </span>
+                        </div>
+                    </div>
+
+                    {facturaActual.observaciones && (
+                        <div className="px-6 pb-5">
+                            <p className="text-[11px] text-neutral-400 mb-1">Observaciones</p>
+                            <p className="text-sm text-neutral-600 leading-relaxed">
+                                {facturaActual.observaciones}
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="px-6 py-3 border-t border-neutral-100 bg-neutral-50/80">
+                        <p className="text-[10px] text-neutral-400 text-center">
+                            Facturas TBS Burbujas · Documento de control interno
+                        </p>
+                    </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground text-center mt-4">
+                    Para exportar PDF/imagen, usa el formulario al crear la factura.
+                    (Luego podemos reutilizar las mismas funciones aquí.)
+                </p>
+            </div>
+        )
+    }
+
     // —— LISTA DE REGISTROS ——
     if (vista === "lista") {
         return (
@@ -770,54 +914,45 @@ export default function FacturasPage() {
                     </Button>
                 </div>
 
-                {registros.length === 0 ? (
-                    <Card>
-                        <CardContent className="py-16 text-center">
-                            <FileText className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
-                            <p className="text-muted-foreground">
-                                Aún no hay facturas registradas
-                            </p>
-                            <Button className="mt-4" onClick={() => setVista("nueva")}>
-                                Crear la primera
-                            </Button>
+                {registros.map((r) => (
+                    <Card
+                        key={r.id}
+                        className="hover:bg-muted/30 transition-colors cursor-pointer"
+                        onClick={() => {
+                            setFacturaActual(r)
+                            setVista("ver")
+                        }}
+                    >
+                        <CardContent className="py-4 flex items-center justify-between gap-4">
+                            <div>
+                                <p className="font-medium">{r.numero}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Bus {r.numero_bus} · {r.fecha}
+                                </p>
+                            </div>
+                            <div className="text-right text-sm">
+                                <p>
+                                    Viaje:{" "}
+                                    <span className="font-medium">
+                                        {formatCOP(Number(r.costo_viaje))}
+                                    </span>
+                                </p>
+                                <p className="text-muted-foreground">
+                                    Gastos: {formatCOP(Number(r.total_gastos))}
+                                </p>
+                                <p
+                                    className={
+                                        Number(r.saldo) >= 0
+                                            ? "text-green-600 font-medium"
+                                            : "text-red-600 font-medium"
+                                    }
+                                >
+                                    Saldo: {formatCOP(Number(r.saldo))}
+                                </p>
+                            </div>
                         </CardContent>
                     </Card>
-                ) : (
-                    <div className="space-y-3">
-                        {registros.map((r) => (
-                            <Card key={r.id} className="hover:bg-muted/30 transition-colors">
-                                <CardContent className="py-4 flex items-center justify-between gap-4">
-                                    <div>
-                                        <p className="font-medium">{r.numero}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            Bus {r.numero_bus} · {r.fecha}
-                                        </p>
-                                    </div>
-                                    <div className="text-right text-sm">
-                                        <p>
-                                            Viaje:{" "}
-                                            <span className="font-medium">
-                                                {formatCOP(Number(r.costo_viaje))}
-                                            </span>
-                                        </p>
-                                        <p className="text-muted-foreground">
-                                            Gastos: {formatCOP(Number(r.total_gastos))}
-                                        </p>
-                                        <p
-                                            className={
-                                                Number(r.saldo) >= 0
-                                                    ? "text-green-600 font-medium"
-                                                    : "text-red-600 font-medium"
-                                            }
-                                        >
-                                            Saldo: {formatCOP(Number(r.saldo))}
-                                        </p>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                )}
+                ))}
             </div>
         )
     }
