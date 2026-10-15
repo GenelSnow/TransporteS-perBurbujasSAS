@@ -28,6 +28,14 @@ export async function ConductorDetail({ params }: Props) {
 
   if (!conductor) notFound()
 
+  const { data: buses } = await supabase
+    .from("buses")
+    .select("*, bus_fotos(*)")
+    .eq("conductor_id", id)
+    .eq("estado", "activo")
+    
+  if (!buses) notFound()
+
   const { data: resenas } = await supabase
     .from("resenas")
     .select("*")
@@ -122,6 +130,47 @@ export async function ConductorDetail({ params }: Props) {
               </p>
             </CardContent>
           </Card>
+
+                    {buses && buses.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Mis buses</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {buses.map((bus) => (
+                  <div key={bus.id} className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-lg">{bus.placa}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {[bus.marca, bus.modelo, bus.año]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    {bus.bus_fotos?.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {bus.bus_fotos
+                          .sort((a: { orden: number }, b: { orden: number }) => a.orden - b.orden)
+                          .map((foto: { id: string; url: string }) => (
+                            <div
+                              key={foto.id}
+                              className="relative aspect-video rounded-lg overflow-hidden bg-muted"
+                            >
+                              <Image
+                                src={foto.url}
+                                alt={`Bus ${bus.placa}`}
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
