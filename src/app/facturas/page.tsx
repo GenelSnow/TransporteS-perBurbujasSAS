@@ -1137,29 +1137,6 @@ export default function FacturasPage() {
                             </div>
                         </div>
 
-                        {/* Gastos de personal */}
-                        {conductorId && pagoChofer > 0 && (
-                            <div className="px-3 py-2.5 flex justify-between text-sm">
-                                <span className="text-neutral-600">
-                                    Pago chofer:{" "}
-                                    {conductores.find((c) => c.id === conductorId)
-                                        ? `${conductores.find((c) => c.id === conductorId)!.nombres} ${conductores.find((c) => c.id === conductorId)!.apellidos}`
-                                        : "—"}
-                                </span>
-                                <span className="font-medium tabular-nums">
-                                    {formatCOP(pagoChofer)}
-                                </span>
-                            </div>
-                        )}
-                        {incluyeAyudante && pagoAyudante > 0 && (
-                            <div className="px-3 py-2.5 flex justify-between text-sm">
-                                <span className="text-neutral-600">Pago ayudante</span>
-                                <span className="font-medium tabular-nums">
-                                    {formatCOP(pagoAyudante)}
-                                </span>
-                            </div>
-                        )}
-
                         {/* Tabla de gastos */}
                         <div className="px-6 pb-4">
                             <div className="rounded-lg border border-neutral-100 overflow-hidden">
@@ -1176,7 +1153,7 @@ export default function FacturasPage() {
                                             </span>
                                         </div>
                                     ))}
-                                    {items.filter((i) => i.concepto.trim()).length === 0 && (
+                                    {lineasGastos.length === 0 && (
                                         <div className="px-3 py-6 text-center text-sm text-neutral-300">
                                             Sin gastos registrados
                                         </div>
