@@ -9,6 +9,6 @@ export function formatCOP(value: number): string {
 
 /** Convierte "$1.500.000" o "1500000" a número */
 export function parseCOP(input: string): number {
-  const cleaned = input.replace(/[^\d]/g)
+  const cleaned = input.replace(/[^\d]/g, "")
   return cleaned ? Number(cleaned) : 0
 }
