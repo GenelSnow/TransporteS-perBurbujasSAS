@@ -237,42 +237,218 @@ export default function FacturasPage() {
     }
 
     const exportPDF = async () => {
-        if (!previewRef.current) return
         try {
-            const html2canvas = (await import("html2canvas")).default
             const { jsPDF } = await import("jspdf")
+            const doc = new jsPDF("p", "mm", "a4")
 
-            const canvas = await html2canvas(previewRef.current, {
-                scale: 2,
-                backgroundColor: "#ffffff",
+            const margin = 20
+            let y = 20
+            const pageWidth = doc.internal.pageSize.getWidth()
+
+            // Foto del responsable (si existe)
+            if (avatarUrl) {
+                try {
+                    const res = await fetch(avatarUrl)
+                    const blob = await res.blob()
+                    const base64 = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader()
+                        reader.onloadend = () => resolve(reader.result as string)
+                        reader.onerror = reject
+                        reader.readAsDataURL(blob)
+                    })
+
+                    // Avatar circular aproximado (cuadrado redondeado visual)
+                    doc.addImage(base64, "JPEG", pageWidth - margin - 16, 14, 16, 16)
+                } catch (e) {
+                    console.warn("No se pudo cargar el avatar:", e)
+                }
+            }
+
+            doc.setFont("helvetica", "bold")
+            doc.setFontSize(14)
+            doc.text("Facturas TBS Burbujas", margin, y)
+            y += 7
+
+            doc.setFont("helvetica", "normal")
+            doc.setFontSize(10)
+            doc.setTextColor(120)
+            doc.text("Control de gastos de viaje", margin, y)
+            y += 10
+
+            doc.setTextColor(0)
+            doc.setDrawColor(220)
+            doc.line(margin, y, pageWidth - margin, y)
+            y += 10
+
+            doc.setFontSize(11)
+            doc.text(`Bus: ${numeroBus || "—"}`, margin, y)
+            y += 7
+            doc.text(`Fecha: ${fecha || "—"}`, margin, y)
+            y += 7
+            doc.text(`Costo del viaje: ${formatCOP(costoViaje)}`, margin, y)
+            y += 7
+            if (nombreUsuario) {
+                doc.text(`Responsable: ${nombreUsuario}`, margin, y)
+                y += 7
+            }
+
+            y += 5
+            doc.setFont("helvetica", "bold")
+            doc.text("Detalle de gastos", margin, y)
+            y += 8
+
+            doc.setFont("helvetica", "normal")
+            const gastosValidos = items.filter((i) => i.concepto.trim())
+
+            if (gastosValidos.length === 0) {
+                doc.setTextColor(150)
+                doc.text("Sin gastos registrados", margin, y)
+                doc.setTextColor(0)
+                y += 8
+            } else {
+                gastosValidos.forEach((item) => {
+                    doc.text(item.concepto, margin, y)
+                    doc.text(formatCOP(item.costo), pageWidth - margin, y, {
+                        align: "right",
+                    })
+                    y += 7
+                    if (y > 270) {
+                        doc.addPage()
+                        y = 20
+                    }
+                })
+            }
+
+            y += 3
+            doc.line(margin, y, pageWidth - margin, y)
+            y += 8
+
+            doc.setFont("helvetica", "bold")
+            doc.text("Sumatoria de gastos", margin, y)
+            doc.text(formatCOP(totalGastos), pageWidth - margin, y, {
+                align: "right",
             })
-            const img = canvas.toDataURL("image/png")
-            const pdf = new jsPDF("p", "mm", "a4")
-            const w = pdf.internal.pageSize.getWidth()
-            const h = (canvas.height * w) / canvas.width
-            pdf.addImage(img, "PNG", 0, 0, w, h)
-            pdf.save(`factura-${numeroBus || "viaje"}.pdf`)
+            y += 8
+
+            doc.text("Saldo del viaje", margin, y)
+            doc.text(formatCOP(saldo), pageWidth - margin, y, { align: "right" })
+            y += 12
+
+            if (observaciones.trim()) {
+                doc.setFont("helvetica", "bold")
+                doc.text("Observaciones", margin, y)
+                y += 6
+                doc.setFont("helvetica", "normal")
+                const lines = doc.splitTextToSize(observaciones, pageWidth - margin * 2)
+                doc.text(lines, margin, y)
+            }
+
+            doc.save(`factura-${numeroBus || "viaje"}-${fecha || "sin-fecha"}.pdf`)
             toast.success("PDF descargado")
-        } catch {
-            toast.error("Error al generar PDF. Instala: npm i html2canvas jspdf")
+        } catch (err) {
+            console.error("PDF error:", err)
+            toast.error("Error al generar PDF", {
+                description: err instanceof Error ? err.message : "Error desconocido",
+            })
         }
     }
 
     const exportImagen = async () => {
-        if (!previewRef.current) return
         try {
-            const html2canvas = (await import("html2canvas")).default
-            const canvas = await html2canvas(previewRef.current, {
-                scale: 2,
-                backgroundColor: "#ffffff",
+            const canvas = document.createElement("canvas")
+            const scale = 2
+            const width = 800
+            const height = 1000
+            canvas.width = width * scale
+            canvas.height = height * scale
+            const ctx = canvas.getContext("2d")
+            if (!ctx) throw new Error("No se pudo crear canvas")
+
+            ctx.scale(scale, scale)
+            ctx.fillStyle = "#ffffff"
+            ctx.fillRect(0, 0, width, height)
+
+            ctx.fillStyle = "#111111"
+            ctx.font = "bold 22px system-ui, sans-serif"
+            ctx.fillText("Facturas TBS Burbujas", 40, 50)
+
+            ctx.fillStyle = "#999999"
+            ctx.font = "14px system-ui, sans-serif"
+            ctx.fillText("Control de gastos de viaje", 40, 75)
+
+            // Avatar
+            if (avatarUrl) {
+                try {
+                    const img = new window.Image()
+                    img.crossOrigin = "anonymous"
+                    await new Promise<void>((resolve, reject) => {
+                        img.onload = () => resolve()
+                        img.onerror = reject
+                        img.src = avatarUrl
+                    })
+                    ctx.save()
+                    ctx.beginPath()
+                    ctx.arc(width - 60, 55, 28, 0, Math.PI * 2)
+                    ctx.closePath()
+                    ctx.clip()
+                    ctx.drawImage(img, width - 88, 27, 56, 56)
+                    ctx.restore()
+                } catch {
+                    // sin avatar, seguimos
+                }
+            }
+
+            let y = 120
+            ctx.fillStyle = "#111111"
+            ctx.font = "15px system-ui, sans-serif"
+            const lineas = [
+                `Bus: ${numeroBus || "—"}`,
+                `Fecha: ${fecha || "—"}`,
+                `Costo del viaje: ${formatCOP(costoViaje)}`,
+                `Responsable: ${nombreUsuario || "—"}`,
+            ]
+            lineas.forEach((t) => {
+                ctx.fillText(t, 40, y)
+                y += 28
             })
+
+            y += 20
+            ctx.font = "bold 16px system-ui, sans-serif"
+            ctx.fillText("Detalle de gastos", 40, y)
+            y += 30
+
+            ctx.font = "15px system-ui, sans-serif"
+            items
+                .filter((i) => i.concepto.trim())
+                .forEach((item) => {
+                    ctx.fillText(item.concepto, 40, y)
+                    const valor = formatCOP(item.costo)
+                    const tw = ctx.measureText(valor).width
+                    ctx.fillText(valor, width - 40 - tw, y)
+                    y += 26
+                })
+
+            y += 20
+            ctx.font = "bold 15px system-ui, sans-serif"
+            ctx.fillText("Sumatoria de gastos", 40, y)
+            let v = formatCOP(totalGastos)
+            ctx.fillText(v, width - 40 - ctx.measureText(v).width, y)
+            y += 28
+            ctx.fillText("Saldo del viaje", 40, y)
+            v = formatCOP(saldo)
+            ctx.fillStyle = saldo >= 0 ? "#059669" : "#dc2626"
+            ctx.fillText(v, width - 40 - ctx.measureText(v).width, y)
+
             const link = document.createElement("a")
             link.download = `factura-${numeroBus || "viaje"}.png`
             link.href = canvas.toDataURL("image/png")
             link.click()
             toast.success("Imagen descargada")
-        } catch {
-            toast.error("Error al generar imagen. Instala: npm i html2canvas jspdf")
+        } catch (err) {
+            console.error(err)
+            toast.error("Error al generar imagen", {
+                description: err instanceof Error ? err.message : "Error desconocido",
+            })
         }
     }
 
