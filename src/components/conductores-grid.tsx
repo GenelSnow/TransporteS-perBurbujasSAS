@@ -1,9 +1,13 @@
+import { connection } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import Image from "next/image"
 import { User } from "lucide-react"
 
 export async function ConductoresGrid() {
+  // Esto le dice a Next.js: "esto corre en cada request, no en el prerender"
+  await connection()
+
   const supabase = await createClient()
 
   const { data: conductores } = await supabase

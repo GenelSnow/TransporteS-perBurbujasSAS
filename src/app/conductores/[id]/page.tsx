@@ -1,3 +1,4 @@
+import { connection } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default async function ConductorPage({ params }: Props) {
+  await connection()
   const { id } = await params
   const supabase = await createClient()
 
