@@ -28,7 +28,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 
-const GASTOS_DEFAULT = ["Comida", "ACPM", "Hotel", "Lavado", "Parqueo"]
+const GASTOS_DEFAULT = ["Comida", "Hotel", "ACPM", "Parqueo", "Lavado"]
 
 type GastoItem = {
     id: string
@@ -75,8 +75,51 @@ export default function FacturasPage() {
         }))
     )
 
-    const totalGastos = items.reduce((acc, i) => acc + (i.costo || 0), 0)
+    // Pago del responsable (quien crea la factura)
+    const [pagoResponsable, setPagoResponsable] = useState(0)
+    const [pagoResponsableInput, setPagoResponsableInput] = useState("")
+
+    // Segundo chofer (opcional)
+    const [tieneSegundoChofer, setTieneSegundoChofer] = useState(false)
+    const [segundoChoferId, setSegundoChoferId] = useState("")
+    const [pagoSegundoChofer, setPagoSegundoChofer] = useState(0)
+    const [pagoSegundoChoferInput, setPagoSegundoChoferInput] = useState("")
+
+    const [conductores, setConductores] = useState<
+        { id: string; nombres: string; apellidos: string }[]
+    >([])
+
+    const totalGastosItems = items.reduce((acc, i) => acc + (i.costo || 0), 0)
+    const totalPagos =
+        (pagoResponsable || 0) +
+        (tieneSegundoChofer ? pagoSegundoChofer || 0 : 0)
+    const totalGastos = totalGastosItems + totalPagos
     const saldo = costoViaje - totalGastos
+
+    const nombreSegundo =
+        conductores.find((c) => c.id === segundoChoferId)
+            ? `${conductores.find((c) => c.id === segundoChoferId)!.nombres} ${conductores.find((c) => c.id === segundoChoferId)!.apellidos}`
+            : ""
+
+    const lineasGastos = [
+        ...(pagoResponsable > 0
+            ? [
+                {
+                    concepto: `Pago responsable: ${nombreUsuario || "Usuario"}`,
+                    costo: pagoResponsable,
+                },
+            ]
+            : []),
+        ...(tieneSegundoChofer && pagoSegundoChofer > 0
+            ? [
+                {
+                    concepto: `Pago segundo chofer: ${nombreSegundo || "—"}`,
+                    costo: pagoSegundoChofer,
+                },
+            ]
+            : []),
+        ...items.filter((i) => i.concepto.trim()),
+    ]
 
     useEffect(() => {
         setFecha(new Date().toISOString().split("T")[0])
@@ -101,6 +144,14 @@ export default function FacturasPage() {
             .single()
 
         setNombreUsuario(profile?.full_name || user.email?.split("@")[0] || "")
+
+        const { data: listaConductores } = await supabase
+            .from("conductores")
+            .select("id, nombres, apellidos")
+            .eq("estado", "activo")
+            .order("nombres")
+
+        setConductores(listaConductores || [])
 
         const { data: conductor } = await supabase
             .from("conductores")
@@ -177,9 +228,32 @@ export default function FacturasPage() {
         if (!user) return
 
         const numero = generarNumero()
+
         const itemsValidos = items.filter(
             (i) => i.concepto.trim() && i.costo >= 0
         )
+
+        const itemsParaGuardar = [
+            ...items.filter((i) => i.concepto.trim()),
+        ]
+
+        if (pagoResponsable > 0) {
+            itemsParaGuardar.push({
+                id: "pago-responsable",
+                concepto: `Pago responsable: ${nombreUsuario || "Usuario"}`,
+                costo: pagoResponsable,
+                es_predefinido: false,
+            })
+        }
+
+        if (tieneSegundoChofer && segundoChoferId && pagoSegundoChofer > 0) {
+            itemsParaGuardar.push({
+                id: "pago-segundo",
+                concepto: `Pago segundo chofer: ${nombreSegundo}`,
+                costo: pagoSegundoChofer,
+                es_predefinido: false,
+            })
+        }
 
         const { data: gasto, error } = await supabase
             .from("gastos_viaje")
@@ -226,6 +300,12 @@ export default function FacturasPage() {
         setCostoViaje(0)
         setCostoViajeInput("")
         setObservaciones("")
+        setPagoResponsable(0)
+        setPagoResponsableInput("")
+        setTieneSegundoChofer(false)
+        setSegundoChoferId("")
+        setPagoSegundoChofer(0)
+        setPagoSegundoChoferInput("")
         setItems(
             GASTOS_DEFAULT.map((c, i) => ({
                 id: `def-${i}`,
@@ -241,11 +321,19 @@ export default function FacturasPage() {
             const { jsPDF } = await import("jspdf")
             const doc = new jsPDF("p", "mm", "a4")
 
-            const margin = 20
-            let y = 20
+            const margin = 18
             const pageWidth = doc.internal.pageSize.getWidth()
+            const contentWidth = pageWidth - margin * 2
+            let y = 18
 
-            // Foto del responsable (si existe)
+            // ——— LOGO (futuro) ———
+            // Cuando tengas el logo en public/ o una URL:
+            // const logoUrl = "/logo-tbs.png"
+            // const logoBase64 = await fetch(logoUrl).then(r => r.blob()).then(...)
+            // doc.addImage(logoBase64, "PNG", margin, 12, 22, 22)
+            // y = 38
+
+            // Avatar responsable (derecha)
             if (avatarUrl) {
                 try {
                     const res = await fetch(avatarUrl)
@@ -256,16 +344,16 @@ export default function FacturasPage() {
                         reader.onerror = reject
                         reader.readAsDataURL(blob)
                     })
-
-                    // Avatar circular aproximado (cuadrado redondeado visual)
-                    doc.addImage(base64, "JPEG", pageWidth - margin - 16, 14, 16, 16)
-                } catch (e) {
-                    console.warn("No se pudo cargar el avatar:", e)
+                    doc.addImage(base64, "JPEG", pageWidth - margin - 18, 12, 18, 18)
+                } catch {
+                    // sin avatar
                 }
             }
 
+            // Encabezado
             doc.setFont("helvetica", "bold")
-            doc.setFontSize(14)
+            doc.setFontSize(16)
+            doc.setTextColor(20)
             doc.text("Facturas TBS Burbujas", margin, y)
             y += 7
 
@@ -273,75 +361,117 @@ export default function FacturasPage() {
             doc.setFontSize(10)
             doc.setTextColor(120)
             doc.text("Control de gastos de viaje", margin, y)
-            y += 10
+            y += 6
 
-            doc.setTextColor(0)
-            doc.setDrawColor(220)
-            doc.line(margin, y, pageWidth - margin, y)
-            y += 10
-
-            doc.setFontSize(11)
-            doc.text(`Bus: ${numeroBus || "—"}`, margin, y)
-            y += 7
-            doc.text(`Fecha: ${fecha || "—"}`, margin, y)
-            y += 7
-            doc.text(`Costo del viaje: ${formatCOP(costoViaje)}`, margin, y)
-            y += 7
             if (nombreUsuario) {
+                doc.setFontSize(9)
                 doc.text(`Responsable: ${nombreUsuario}`, margin, y)
-                y += 7
+                y += 5
             }
 
-            y += 5
+            y += 3
+            doc.setDrawColor(210)
+            doc.setLineWidth(0.3)
+            doc.line(margin, y, pageWidth - margin, y)
+            y += 9
+
+            // Datos del viaje
+            doc.setTextColor(30)
+            doc.setFontSize(11)
+            const datos = [
+                ["Bus", numeroBus || "—"],
+                ["Fecha", fecha || "—"],
+                ["Costo del viaje", formatCOP(costoViaje)],
+            ]
+            datos.forEach(([label, value]) => {
+                doc.setFont("helvetica", "normal")
+                doc.setTextColor(110)
+                doc.text(`${label}:`, margin, y)
+                doc.setFont("helvetica", "bold")
+                doc.setTextColor(30)
+                doc.text(String(value), margin + 42, y)
+                y += 7
+            })
+
+            y += 4
             doc.setFont("helvetica", "bold")
+            doc.setFontSize(12)
+            doc.setTextColor(20)
             doc.text("Detalle de gastos", margin, y)
             y += 8
 
             doc.setFont("helvetica", "normal")
-            const gastosValidos = items.filter((i) => i.concepto.trim())
+            doc.setFontSize(11)
 
-            if (gastosValidos.length === 0) {
+            if (lineasGastos.length === 0) {
                 doc.setTextColor(150)
                 doc.text("Sin gastos registrados", margin, y)
-                doc.setTextColor(0)
                 y += 8
             } else {
-                gastosValidos.forEach((item) => {
-                    doc.text(item.concepto, margin, y)
-                    doc.text(formatCOP(item.costo), pageWidth - margin, y, {
-                        align: "right",
-                    })
-                    y += 7
-                    if (y > 270) {
+                lineasGastos.forEach((item) => {
+                    if (y > 265) {
                         doc.addPage()
                         y = 20
                     }
+                    doc.setTextColor(50)
+                    doc.setFont("helvetica", "normal")
+                    const concepto = doc.splitTextToSize(item.concepto, contentWidth - 40)
+                    doc.text(concepto, margin, y)
+                    doc.setFont("helvetica", "bold")
+                    doc.text(formatCOP(item.costo), pageWidth - margin, y, {
+                        align: "right",
+                    })
+                    y += Math.max(7, concepto.length * 5.5)
                 })
             }
 
             y += 3
+            doc.setDrawColor(210)
             doc.line(margin, y, pageWidth - margin, y)
             y += 8
 
             doc.setFont("helvetica", "bold")
+            doc.setFontSize(11)
+            doc.setTextColor(40)
             doc.text("Sumatoria de gastos", margin, y)
-            doc.text(formatCOP(totalGastos), pageWidth - margin, y, {
-                align: "right",
-            })
+            doc.text(formatCOP(totalGastos), pageWidth - margin, y, { align: "right" })
             y += 8
 
+            doc.setFontSize(12)
             doc.text("Saldo del viaje", margin, y)
+            if (saldo >= 0) doc.setTextColor(5, 150, 105)
+            else doc.setTextColor(220, 38, 38)
             doc.text(formatCOP(saldo), pageWidth - margin, y, { align: "right" })
             y += 12
 
+            doc.setTextColor(30)
             if (observaciones.trim()) {
                 doc.setFont("helvetica", "bold")
+                doc.setFontSize(11)
                 doc.text("Observaciones", margin, y)
                 y += 6
                 doc.setFont("helvetica", "normal")
-                const lines = doc.splitTextToSize(observaciones, pageWidth - margin * 2)
+                doc.setFontSize(10)
+                doc.setTextColor(70)
+                const lines = doc.splitTextToSize(observaciones, contentWidth)
                 doc.text(lines, margin, y)
+                y += lines.length * 5 + 8
             }
+
+            // Pie
+            y = Math.max(y + 6, 280)
+            doc.setDrawColor(230)
+            doc.line(margin, y, pageWidth - margin, y)
+            y += 5
+            doc.setFontSize(8)
+            doc.setTextColor(150)
+            doc.setFont("helvetica", "normal")
+            doc.text(
+                "Facturas TBS Burbujas · Documento de control interno",
+                pageWidth / 2,
+                y,
+                { align: "center" }
+            )
 
             doc.save(`factura-${numeroBus || "viaje"}-${fecha || "sin-fecha"}.pdf`)
             toast.success("PDF descargado")
@@ -355,26 +485,42 @@ export default function FacturasPage() {
 
     const exportImagen = async () => {
         try {
-            const canvas = document.createElement("canvas")
             const scale = 2
-            const width = 800
-            const height = 1000
+            const width = 900
+            const padding = 48
+            const contentW = width - padding * 2
+
+            // Altura dinámica según contenido
+            const lineHeight = 28
+            const extraObs = observaciones.trim()
+                ? Math.ceil(observaciones.length / 55) * 22 + 40
+                : 0
+            const height = Math.max(
+                720,
+                280 + lineasGastos.length * lineHeight + extraObs + 120
+            )
+
+            const canvas = document.createElement("canvas")
             canvas.width = width * scale
             canvas.height = height * scale
             const ctx = canvas.getContext("2d")
-            if (!ctx) throw new Error("No se pudo crear canvas")
+            if (!ctx) throw new Error("No se pudo crear el canvas")
 
             ctx.scale(scale, scale)
+
+            // Fondo
             ctx.fillStyle = "#ffffff"
             ctx.fillRect(0, 0, width, height)
 
-            ctx.fillStyle = "#111111"
-            ctx.font = "bold 22px system-ui, sans-serif"
-            ctx.fillText("Facturas TBS Burbujas", 40, 50)
+            let y = padding
 
-            ctx.fillStyle = "#999999"
-            ctx.font = "14px system-ui, sans-serif"
-            ctx.fillText("Control de gastos de viaje", 40, 75)
+            // ——— LOGO (futuro) ———
+            // const logo = new Image()
+            // logo.crossOrigin = "anonymous"
+            // logo.src = "/logo-tbs.png"
+            // await new Promise(...)
+            // ctx.drawImage(logo, padding, y, 48, 48)
+            // luego desplaza el texto a la derecha
 
             // Avatar
             if (avatarUrl) {
@@ -384,72 +530,203 @@ export default function FacturasPage() {
                     await new Promise<void>((resolve, reject) => {
                         img.onload = () => resolve()
                         img.onerror = reject
-                        img.src = avatarUrl
+                        img.src = avatarUrl!
                     })
+                    const ax = width - padding - 52
+                    const ay = padding
                     ctx.save()
                     ctx.beginPath()
-                    ctx.arc(width - 60, 55, 28, 0, Math.PI * 2)
+                    ctx.arc(ax + 26, ay + 26, 26, 0, Math.PI * 2)
                     ctx.closePath()
                     ctx.clip()
-                    ctx.drawImage(img, width - 88, 27, 56, 56)
+                    ctx.drawImage(img, ax, ay, 52, 52)
                     ctx.restore()
+                    // borde sutil
+                    ctx.beginPath()
+                    ctx.arc(ax + 26, ay + 26, 26, 0, Math.PI * 2)
+                    ctx.strokeStyle = "#e5e5e5"
+                    ctx.lineWidth = 1.5
+                    ctx.stroke()
                 } catch {
-                    // sin avatar, seguimos
+                    // sin avatar
                 }
             }
 
-            let y = 120
+            // Título
             ctx.fillStyle = "#111111"
-            ctx.font = "15px system-ui, sans-serif"
-            const lineas = [
-                `Bus: ${numeroBus || "—"}`,
-                `Fecha: ${fecha || "—"}`,
-                `Costo del viaje: ${formatCOP(costoViaje)}`,
-                `Responsable: ${nombreUsuario || "—"}`,
+            ctx.font = "600 26px system-ui, -apple-system, sans-serif"
+            ctx.fillText("Facturas TBS Burbujas", padding, y + 22)
+            y += 42
+
+            ctx.fillStyle = "#9ca3af"
+            ctx.font = "400 14px system-ui, sans-serif"
+            ctx.fillText("Control de gastos de viaje", padding, y)
+            y += 22
+
+            if (nombreUsuario) {
+                ctx.fillStyle = "#6b7280"
+                ctx.font = "400 13px system-ui, sans-serif"
+                ctx.fillText(`Responsable: ${nombreUsuario}`, padding, y)
+                y += 20
+            }
+
+            // Línea
+            y += 8
+            ctx.strokeStyle = "#e5e5e5"
+            ctx.lineWidth = 1
+            ctx.beginPath()
+            ctx.moveTo(padding, y)
+            ctx.lineTo(width - padding, y)
+            ctx.stroke()
+            y += 28
+
+            // Datos
+            const datos: [string, string][] = [
+                ["Bus", numeroBus || "—"],
+                ["Fecha", fecha || "—"],
+                ["Costo del viaje", formatCOP(costoViaje)],
             ]
-            lineas.forEach((t) => {
-                ctx.fillText(t, 40, y)
-                y += 28
+            datos.forEach(([label, value]) => {
+                ctx.font = "400 15px system-ui, sans-serif"
+                ctx.fillStyle = "#9ca3af"
+                ctx.fillText(`${label}`, padding, y)
+                ctx.font = "600 15px system-ui, sans-serif"
+                ctx.fillStyle = "#171717"
+                ctx.fillText(value, padding + 140, y)
+                y += 26
             })
 
-            y += 20
-            ctx.font = "bold 16px system-ui, sans-serif"
-            ctx.fillText("Detalle de gastos", 40, y)
-            y += 30
-
-            ctx.font = "15px system-ui, sans-serif"
-            items
-                .filter((i) => i.concepto.trim())
-                .forEach((item) => {
-                    ctx.fillText(item.concepto, 40, y)
-                    const valor = formatCOP(item.costo)
-                    const tw = ctx.measureText(valor).width
-                    ctx.fillText(valor, width - 40 - tw, y)
-                    y += 26
-                })
-
-            y += 20
-            ctx.font = "bold 15px system-ui, sans-serif"
-            ctx.fillText("Sumatoria de gastos", 40, y)
-            let v = formatCOP(totalGastos)
-            ctx.fillText(v, width - 40 - ctx.measureText(v).width, y)
+            y += 16
+            ctx.fillStyle = "#111111"
+            ctx.font = "600 17px system-ui, sans-serif"
+            ctx.fillText("Detalle de gastos", padding, y)
             y += 28
-            ctx.fillText("Saldo del viaje", 40, y)
+
+            if (lineasGastos.length === 0) {
+                ctx.fillStyle = "#d1d5db"
+                ctx.font = "400 15px system-ui, sans-serif"
+                ctx.fillText("Sin gastos registrados", padding, y)
+                y += 24
+            } else {
+                lineasGastos.forEach((item) => {
+                    ctx.font = "400 15px system-ui, sans-serif"
+                    ctx.fillStyle = "#404040"
+                    ctx.fillText(item.concepto, padding, y)
+
+                    const valor = formatCOP(item.costo)
+                    ctx.font = "600 15px system-ui, sans-serif"
+                    ctx.fillStyle = "#171717"
+                    const tw = ctx.measureText(valor).width
+                    ctx.fillText(valor, width - padding - tw, y)
+                    y += lineHeight
+                })
+            }
+
+            y += 8
+            ctx.strokeStyle = "#e5e5e5"
+            ctx.beginPath()
+            ctx.moveTo(padding, y)
+            ctx.lineTo(width - padding, y)
+            ctx.stroke()
+            y += 28
+
+            // Totales
+            ctx.font = "600 15px system-ui, sans-serif"
+            ctx.fillStyle = "#404040"
+            ctx.fillText("Sumatoria de gastos", padding, y)
+            let v = formatCOP(totalGastos)
+            ctx.fillStyle = "#171717"
+            ctx.fillText(v, width - padding - ctx.measureText(v).width, y)
+            y += 32
+
+            // Caja saldo
+            const boxH = 44
+            ctx.fillStyle = "#fafafa"
+            ctx.strokeStyle = "#eeeeee"
+            ctx.lineWidth = 1
+            roundRect(ctx, padding, y - 8, contentW, boxH, 10)
+            ctx.fill()
+            ctx.stroke()
+
+            ctx.font = "600 16px system-ui, sans-serif"
+            ctx.fillStyle = "#171717"
+            ctx.fillText("Saldo del viaje", padding + 16, y + 20)
             v = formatCOP(saldo)
             ctx.fillStyle = saldo >= 0 ? "#059669" : "#dc2626"
-            ctx.fillText(v, width - 40 - ctx.measureText(v).width, y)
+            ctx.fillText(v, width - padding - 16 - ctx.measureText(v).width, y + 20)
+            y += boxH + 20
+
+            if (observaciones.trim()) {
+                ctx.fillStyle = "#9ca3af"
+                ctx.font = "500 12px system-ui, sans-serif"
+                ctx.fillText("OBSERVACIONES", padding, y)
+                y += 20
+                ctx.fillStyle = "#525252"
+                ctx.font = "400 14px system-ui, sans-serif"
+                const words = observaciones.split(" ")
+                let line = ""
+                for (const w of words) {
+                    const test = line ? `${line} ${w}` : w
+                    if (ctx.measureText(test).width > contentW) {
+                        ctx.fillText(line, padding, y)
+                        y += 20
+                        line = w
+                    } else {
+                        line = test
+                    }
+                }
+                if (line) {
+                    ctx.fillText(line, padding, y)
+                    y += 24
+                }
+            }
+
+            // Pie
+            y = Math.max(y + 16, height - 40)
+            ctx.strokeStyle = "#f0f0f0"
+            ctx.beginPath()
+            ctx.moveTo(padding, y)
+            ctx.lineTo(width - padding, y)
+            ctx.stroke()
+            y += 18
+            ctx.fillStyle = "#c4c4c4"
+            ctx.font = "400 11px system-ui, sans-serif"
+            const footer = "Facturas TBS Burbujas · Documento de control interno"
+            ctx.fillText(
+                footer,
+                (width - ctx.measureText(footer).width) / 2,
+                y
+            )
 
             const link = document.createElement("a")
-            link.download = `factura-${numeroBus || "viaje"}.png`
+            link.download = `factura-${numeroBus || "viaje"}-${fecha || "sin-fecha"}.png`
             link.href = canvas.toDataURL("image/png")
             link.click()
             toast.success("Imagen descargada")
         } catch (err) {
-            console.error(err)
+            console.error("Imagen error:", err)
             toast.error("Error al generar imagen", {
                 description: err instanceof Error ? err.message : "Error desconocido",
             })
         }
+    }
+
+    /** Helper para rectángulos redondeados en canvas */
+    function roundRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        r: number
+    ) {
+        ctx.beginPath()
+        ctx.moveTo(x + r, y)
+        ctx.arcTo(x + w, y, x + w, y + h, r)
+        ctx.arcTo(x + w, y + h, x, y + h, r)
+        ctx.arcTo(x, y + h, x, y, r)
+        ctx.arcTo(x, y, x + w, y, r)
+        ctx.closePath()
     }
 
     if (loading) {
@@ -593,6 +870,105 @@ export default function FacturasPage() {
                                     }
                                     placeholder="$0"
                                 />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Pago de chofer / ayudante */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg">Pagos de choferes</CardTitle>
+                            <CardDescription>
+                                Pago del responsable y, si aplica, del segundo chofer
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-5">
+                            {/* Responsable = quien crea la factura */}
+                            <div className="space-y-2">
+                                <Label>Responsable (quien crea la factura)</Label>
+                                <Input value={nombreUsuario || "Usuario"} disabled className="bg-muted" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Paga del responsable</Label>
+                                <Input
+                                    value={pagoResponsableInput}
+                                    onChange={(e) => {
+                                        setPagoResponsableInput(e.target.value)
+                                        setPagoResponsable(parseCOP(e.target.value))
+                                    }}
+                                    onBlur={() =>
+                                        setPagoResponsableInput(
+                                            pagoResponsable ? formatCOP(pagoResponsable) : ""
+                                        )
+                                    }
+                                    onFocus={() =>
+                                        setPagoResponsableInput(
+                                            pagoResponsable ? String(pagoResponsable) : ""
+                                        )
+                                    }
+                                    placeholder="$0"
+                                />
+                            </div>
+
+                            <div className="border-t pt-4 space-y-3">
+                                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={tieneSegundoChofer}
+                                        onChange={(e) => {
+                                            setTieneSegundoChofer(e.target.checked)
+                                            if (!e.target.checked) {
+                                                setSegundoChoferId("")
+                                                setPagoSegundoChofer(0)
+                                                setPagoSegundoChoferInput("")
+                                            }
+                                        }}
+                                        className="rounded border-input"
+                                    />
+                                    Este viaje lleva segundo chofer
+                                </label>
+
+                                {tieneSegundoChofer && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Label>Segundo chofer</Label>
+                                            <select
+                                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                value={segundoChoferId}
+                                                onChange={(e) => setSegundoChoferId(e.target.value)}
+                                            >
+                                                <option value="">Seleccionar conductor...</option>
+                                                {conductores.map((c) => (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.nombres} {c.apellidos}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Paga del segundo chofer</Label>
+                                            <Input
+                                                value={pagoSegundoChoferInput}
+                                                onChange={(e) => {
+                                                    setPagoSegundoChoferInput(e.target.value)
+                                                    setPagoSegundoChofer(parseCOP(e.target.value))
+                                                }}
+                                                onBlur={() =>
+                                                    setPagoSegundoChoferInput(
+                                                        pagoSegundoChofer ? formatCOP(pagoSegundoChofer) : ""
+                                                    )
+                                                }
+                                                onFocus={() =>
+                                                    setPagoSegundoChoferInput(
+                                                        pagoSegundoChofer ? String(pagoSegundoChofer) : ""
+                                                    )
+                                                }
+                                                placeholder="$0"
+                                                disabled={!segundoChoferId}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
@@ -761,6 +1137,29 @@ export default function FacturasPage() {
                             </div>
                         </div>
 
+                        {/* Gastos de personal */}
+                        {conductorId && pagoChofer > 0 && (
+                            <div className="px-3 py-2.5 flex justify-between text-sm">
+                                <span className="text-neutral-600">
+                                    Pago chofer:{" "}
+                                    {conductores.find((c) => c.id === conductorId)
+                                        ? `${conductores.find((c) => c.id === conductorId)!.nombres} ${conductores.find((c) => c.id === conductorId)!.apellidos}`
+                                        : "—"}
+                                </span>
+                                <span className="font-medium tabular-nums">
+                                    {formatCOP(pagoChofer)}
+                                </span>
+                            </div>
+                        )}
+                        {incluyeAyudante && pagoAyudante > 0 && (
+                            <div className="px-3 py-2.5 flex justify-between text-sm">
+                                <span className="text-neutral-600">Pago ayudante</span>
+                                <span className="font-medium tabular-nums">
+                                    {formatCOP(pagoAyudante)}
+                                </span>
+                            </div>
+                        )}
+
                         {/* Tabla de gastos */}
                         <div className="px-6 pb-4">
                             <div className="rounded-lg border border-neutral-100 overflow-hidden">
@@ -769,19 +1168,14 @@ export default function FacturasPage() {
                                     <span>Valor</span>
                                 </div>
                                 <div className="divide-y divide-neutral-50">
-                                    {items
-                                        .filter((i) => i.concepto.trim())
-                                        .map((item) => (
-                                            <div
-                                                key={item.id}
-                                                className="px-3 py-2.5 flex justify-between text-sm"
-                                            >
-                                                <span className="text-neutral-600">{item.concepto}</span>
-                                                <span className="font-medium tabular-nums">
-                                                    {formatCOP(item.costo)}
-                                                </span>
-                                            </div>
-                                        ))}
+                                    {lineasGastos.map((item, idx) => (
+                                        <div key={idx} className="px-3 py-2.5 flex justify-between text-sm">
+                                            <span className="text-neutral-600">{item.concepto}</span>
+                                            <span className="font-medium tabular-nums">
+                                                {formatCOP(item.costo)}
+                                            </span>
+                                        </div>
+                                    ))}
                                     {items.filter((i) => i.concepto.trim()).length === 0 && (
                                         <div className="px-3 py-6 text-center text-sm text-neutral-300">
                                             Sin gastos registrados
