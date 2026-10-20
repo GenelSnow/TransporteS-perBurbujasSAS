@@ -39,6 +39,13 @@ import Link from "next/link"
 
 const GASTOS_DEFAULT = ["Comida", "Hotel", "ACPM", "Parqueo", "Lavado"]
 
+type GastoItem = {
+    id: string
+    concepto: string
+    costo: number
+    es_predefinido: boolean
+}
+
 type ItemGuardado = {
     concepto: string
     costo: number
@@ -345,6 +352,7 @@ export default function FacturasPage() {
         }
 
         setExportando(false)
+        setMostrarCompartir(true)
         resetForm()
         setVista("lista")
         loadRegistros()
@@ -810,8 +818,11 @@ export default function FacturasPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
+                                setMostrarCompartir(false)
+                                resetForm()
                                 setFacturaActual(null)
                                 setVista("lista")
+                                loadRegistros()
                             }}
                         >
                             <ArrowLeft className="h-4 w-4 mr-1" />
