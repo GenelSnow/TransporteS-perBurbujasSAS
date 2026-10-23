@@ -304,7 +304,7 @@ export default function FacturasPage() {
         }
         if (incluyeAyudante && pagoAyudante > 0) {
             itemsParaGuardar.push({
-                concepto: `Porcentaje Ayudante: ${nombreAyudante.trim() || "—"}`,
+                concepto: "Porcentaje a Ayudante",
                 costo: pagoAyudante,
             })
         }
