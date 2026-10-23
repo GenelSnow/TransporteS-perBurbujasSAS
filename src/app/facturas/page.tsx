@@ -56,6 +56,8 @@ type Registro = {
     numero: string
     numero_bus: string | null
     fecha: string
+    origen: string | null
+    destino: string | null
     costo_viaje: number
     total_gastos: number
     saldo: number
@@ -67,6 +69,7 @@ type Registro = {
     pago_ayudante: number
     items: ItemGuardado[]
     created_at: string
+
 }
 
 
@@ -87,6 +90,8 @@ export default function FacturasPage() {
     // Formulario
     const [numeroBus, setNumeroBus] = useState("")
     const [fecha, setFecha] = useState("")
+    const [origen, setOrigen] = useState("")
+    const [destino, setDestino] = useState("")
     const [costoViaje, setCostoViaje] = useState(0)
     const [costoViajeInput, setCostoViajeInput] = useState("")
     const [observaciones, setObservaciones] = useState("")
@@ -309,6 +314,8 @@ export default function FacturasPage() {
                 numero,
                 numero_bus: numeroBus.trim(),
                 fecha,
+                origen: origen.trim() || null,
+                destino: destino.trim() || null,
                 costo_viaje: costoViaje,
                 total_gastos: totalGastos,
                 saldo,
@@ -352,7 +359,7 @@ export default function FacturasPage() {
         }
 
         setExportando(false)
-        setMostrarCompartir(true)
+        setMostrarCompartir(false)
         resetForm()
         setVista("lista")
         loadRegistros()
@@ -361,6 +368,8 @@ export default function FacturasPage() {
     const resetForm = () => {
         setNumeroBus("")
         setFecha(new Date().toISOString().split("T")[0])
+        setOrigen("")
+        setDestino("")
         setCostoViaje(0)
         setCostoViajeInput("")
         setObservaciones("")
@@ -1048,6 +1057,33 @@ export default function FacturasPage() {
                                     onChange={(e) => setFecha(e.target.value)}
                                 />
                             </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Origen</Label>
+                                    <Input
+                                        value={origen}
+                                        onChange={(e) => setOrigen(e.target.value)}
+                                        placeholder="Ej: Barranquilla"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Destino</Label>
+                                    <Input
+                                        value={destino}
+                                        onChange={(e) => setDestino(e.target.value)}
+                                        placeholder="Ej: Bogotá"
+                                    />
+                                </div>
+                                {/* Vista rápida de la ruta */}
+                                {(origen || destino) && (
+                                    <p className="text-sm text-muted-foreground">
+                                        Ruta:{" "}
+                                        <span className="font-medium text-foreground">
+                                            {origen || "—"} - {destino || "—"}
+                                        </span>
+                                    </p>
+                                )}
+                            </div>
                             <div className="space-y-2">
                                 <Label>Costo del viaje</Label>
                                 <Input
@@ -1388,6 +1424,14 @@ export default function FacturasPage() {
                             <div>
                                 <p className="text-[11px] text-neutral-400 mb-0.5">Fecha</p>
                                 <p className="font-medium">{fecha || "—"}</p>
+                            </div>
+                            <div>
+                                <p className="text-[11px] text-neutral-400 mb-0.5">Ruta</p>
+                                <p className="font-medium">
+                                    {origen || destino
+                                        ? `${origen || "—"} - ${destino || "—"}`
+                                        : "—"}
+                                </p>
                             </div>
                             <div className="text-right">
                                 <p className="text-[11px] text-neutral-400 mb-0.5">Costo del viaje</p>
