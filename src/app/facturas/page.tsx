@@ -292,19 +292,19 @@ export default function FacturasPage() {
 
         if (pagoResponsable > 0) {
             itemsParaGuardar.unshift({
-                concepto: `Pago responsable: ${nombreUsuario || "Usuario"}`,
+                concepto: `Porcentaje Chofer 1: ${nombreUsuario || "Usuario"}`,
                 costo: pagoResponsable,
             })
         }
         if (tieneSegundoChofer && pagoSegundoChofer > 0) {
             itemsParaGuardar.push({
-                concepto: `Pago segundo chofer: ${nombreSegundoChofer.trim() || "—"}`,
+                concepto: `Porcentaje Chofer 2: ${nombreSegundoChofer.trim() || "—"}`,
                 costo: pagoSegundoChofer,
             })
         }
         if (incluyeAyudante && pagoAyudante > 0) {
             itemsParaGuardar.push({
-                concepto: "Pago a Auxiliar",
+                concepto: `Porcentaje Ayudante: ${nombreAyudante.trim() || "—"}`,
                 costo: pagoAyudante,
             })
         }
