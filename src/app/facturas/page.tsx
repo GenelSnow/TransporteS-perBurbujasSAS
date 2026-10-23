@@ -457,6 +457,7 @@ export default function FacturasPage() {
             const datos = [
                 ["Bus", numeroBus || "—"],
                 ["Fecha", fecha || "—"],
+                ["Ruta", origen || destino ? `${origen || "—"} - ${destino || "—"}` : "—"],
                 ["Costo del viaje", formatCOP(costoViaje)],
             ]
             datos.forEach(([label, value]) => {
@@ -660,6 +661,7 @@ export default function FacturasPage() {
             const datos: [string, string][] = [
                 ["Bus", numeroBus || "—"],
                 ["Fecha", fecha || "—"],
+                ["Ruta", origen || destino ? `${origen || "—"} - ${destino || "—"}` : "—"],
                 ["Costo del viaje", formatCOP(costoViaje)],
             ]
             datos.forEach(([label, value]) => {
@@ -873,6 +875,16 @@ export default function FacturasPage() {
                             <p className="text-[11px] text-neutral-400 mb-0.5">Fecha</p>
                             <p className="font-medium">{facturaActual.fecha}</p>
                         </div>
+                        <div>
+                            <div>
+                                <p className="text-[11px] text-neutral-400 mb-0.5">Ruta</p>
+                                <p className="font-medium">
+                                    {facturaActual.origen || facturaActual.destino
+                                        ? `${facturaActual.origen || "—"} - ${facturaActual.destino || "—"}`
+                                        : "—"}
+                                </p>
+                            </div>
+                        </div>
                         <div className="text-right">
                             <p className="text-[11px] text-neutral-400 mb-0.5">Costo del viaje</p>
                             <p className="font-semibold">
@@ -986,6 +998,9 @@ export default function FacturasPage() {
                                 <p className="font-medium">{r.numero}</p>
                                 <p className="text-sm text-muted-foreground">
                                     Bus {r.numero_bus} · {r.fecha}
+                                    {(r.origen || r.destino) && (
+                                        <> · {r.origen || "—"} - {r.destino || "—"}</>
+                                    )}
                                 </p>
                             </div>
                             <div className="text-right text-sm">
