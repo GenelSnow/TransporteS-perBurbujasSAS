@@ -12,13 +12,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { User, FileText, LogOut, ChevronDown } from "lucide-react"
+import {
+  User,
+  FileText,
+  LogOut,
+  ChevronDown,
+  Users,
+  LayoutDashboard,
+} from "lucide-react"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 export function Header() {
   const router = useRouter()
   const [user, setUser] = useState<SupabaseUser | null>(null)
-  const [displayName, setDisplayName] = useState<string>("")
+  const [displayName, setDisplayName] = useState("")
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -37,8 +44,8 @@ export function Header() {
 
         setDisplayName(
           profile?.full_name ||
-          data.user.email?.split("@")[0] ||
-          "Usuario"
+            data.user.email?.split("@")[0] ||
+            "Usuario"
         )
       }
       setLoading(false)
@@ -64,25 +71,54 @@ export function Header() {
   }
 
   return (
-    <header className="border-b bg-background sticky top-0 z-50">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="font-bold text-xl tracking-tight">
-          Facturas TBS Burbujas
+    <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sticky top-0 z-50">
+      <div className="container mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-2 min-w-0">
+        {/* Logo: corto en móvil, completo en desktop */}
+        <Link
+          href="/"
+          className="font-semibold text-base sm:text-lg tracking-tight shrink-0 min-w-0 truncate max-w-[45%] sm:max-w-none"
+        >
+          <span className="sm:hidden">TBS Burbujas</span>
+          <span className="hidden sm:inline">Facturas TBS Burbujas</span>
         </Link>
 
-        <nav className="flex items-center gap-3">
+        <nav className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Conductores: solo icono en móvil */}
           <Link href="/">
-            <Button variant="ghost">Conductores</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 sm:px-3"
+            >
+              <Users className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Conductores</span>
+            </Button>
           </Link>
 
           {loading ? null : user ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center justify-center gap-2 rounded-md border bg-background px-3 h-8 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <User className="h-4 w-4" />
-                <span className="max-w-[140px] truncate">{displayName}</span>
-                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+              <DropdownMenuTrigger className="inline-flex items-center justify-center gap-1.5 rounded-md border bg-background px-2 sm:px-3 h-8 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring max-w-[140px] sm:max-w-[180px]">
+                <User className="h-4 w-4 shrink-0" />
+                {/* Nombre solo desde sm; en móvil solo icono */}
+                <span className="hidden sm:inline truncate">
+                  {displayName}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
+                {/* Nombre completo dentro del menú en móvil */}
+                <div className="px-2 py-1.5 sm:hidden">
+                  <p className="text-sm font-medium truncate">{displayName}</p>
+                  <p className="text-xs text-muted-foreground">Tu cuenta</p>
+                </div>
+                <DropdownMenuSeparator className="sm:hidden" />
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => router.push("/dashboard")}
+                >
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="cursor-pointer"
                   onClick={() => router.push("/perfil")}
@@ -109,7 +145,9 @@ export function Header() {
             </DropdownMenu>
           ) : (
             <Link href="/login">
-              <Button size="sm">Iniciar sesión</Button>
+              <Button size="sm" className="h-8 text-xs sm:text-sm px-2.5 sm:px-3">
+                Entrar
+              </Button>
             </Link>
           )}
         </nav>

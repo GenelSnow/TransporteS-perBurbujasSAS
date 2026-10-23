@@ -211,6 +211,7 @@ export default function FacturasPage() {
         const { data, error } = await supabase
             .from("facturas_viaje")
             .select("*")
+            .eq("created_by", user.id)
             .order("created_at", { ascending: false })
             .limit(50)
 
