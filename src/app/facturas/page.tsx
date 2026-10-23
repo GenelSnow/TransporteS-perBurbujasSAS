@@ -149,7 +149,7 @@ export default function FacturasPage() {
             ]
             : []),
         ...(incluyeAyudante && pagoAyudante > 0
-            ? [{ concepto: "Porcentaje a Auxiliar", costo: pagoAyudante }]
+            ? [{ concepto: "Pago a Auxiliar", costo: pagoAyudante }]
             : []),
         ...items.filter((i) => i.concepto.trim()),
     ]
@@ -304,7 +304,7 @@ export default function FacturasPage() {
         }
         if (incluyeAyudante && pagoAyudante > 0) {
             itemsParaGuardar.push({
-                concepto: "Porcentaje a Ayudante",
+                concepto: "Pago a Auxiliar",
                 costo: pagoAyudante,
             })
         }
