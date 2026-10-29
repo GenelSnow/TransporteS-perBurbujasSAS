@@ -58,7 +58,7 @@ export default function DashboardPage() {
           .select("*", { count: "exact", head: true })
           .eq("estado", "activo"),
         supabase
-          .from("gastos_viaje")
+          .from("facturas_viaje")
           .select("*", { count: "exact", head: true }),
         supabase.from("buses").select("*", { count: "exact", head: true }),
       ])
