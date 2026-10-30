@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { registrarPush } from "@/lib/push-client"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -1036,6 +1037,33 @@ export default function FacturasPage() {
                 </div>
                 <div className="flex items-center justify-between mb-8">
 
+                    {/* Activar avisos del sistema */}
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            const supabase = createClient()
+                            const {
+                                data: { user },
+                            } = await supabase.auth.getUser()
+                            if (!user) {
+                                toast.error("Debes iniciar sesión")
+                                return
+                            }
+                            try {
+                                await registrarPush(user.id)
+                                toast.success("Avisos activados en este dispositivo")
+                            } catch (e) {
+                                console.error(e)
+                                toast.error("No se pudieron activar los avisos", {
+                                    description:
+                                        "Revisa que el navegador permita notificaciones",
+                                })
+                            }
+                        }}
+                        className="inline-flex items-center gap-2 rounded-xl border h-11 px-4 text-sm font-semibold hover:bg-muted transition"
+                    >
+                        Activar avisos
+                    </button>
                     <div>
                         <h1 className="text-3xl font-semibold tracking-tight">
                             Facturas / Gastos de viaje
