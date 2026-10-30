@@ -1038,7 +1038,7 @@ export default function FacturasPage() {
                 {registros.map((r) => (
                     <Card
                         key={r.id}
-                        className="hover:bg-muted/30 transition-colors cursor-pointer"
+                        className="hover:bg-muted/30 transition-colors cursor-pointer my-5"
                         onClick={() => {
                             setFacturaActual(r)
                             setVista("ver")
