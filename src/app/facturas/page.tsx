@@ -140,7 +140,7 @@ export default function FacturasPage() {
         ...(pagoResponsable > 0
             ? [
                 {
-                    concepto: `Porcentaje Conductor 1: ${nombreUsuario || "Usuario"}`,
+                    concepto: `% Conductor 1: ${nombreUsuario || "Usuario"}`,
                     costo: pagoResponsable,
                 },
             ]
@@ -148,7 +148,7 @@ export default function FacturasPage() {
         ...(tieneSegundoChofer && pagoSegundoChofer > 0
             ? [
                 {
-                    concepto: `Porcentaje Conductor 2: ${nombreSegundoChofer.trim() || "—"}`,
+                    concepto: `% Conductor 2: ${nombreSegundoChofer.trim() || "—"}`,
                     costo: pagoSegundoChofer,
                 },
             ]
@@ -307,13 +307,13 @@ export default function FacturasPage() {
 
         if (pagoResponsable > 0) {
             itemsParaGuardar.unshift({
-                concepto: `Porcentaje Chofer 1: ${nombreUsuario || "Usuario"}`,
+                concepto: `% Chofer 1: ${nombreUsuario || "Usuario"}`,
                 costo: pagoResponsable,
             })
         }
         if (tieneSegundoChofer && pagoSegundoChofer > 0) {
             itemsParaGuardar.push({
-                concepto: `Porcentaje Chofer 2: ${nombreSegundoChofer.trim() || "—"}`,
+                concepto: `% Chofer 2: ${nombreSegundoChofer.trim() || "—"}`,
                 costo: pagoSegundoChofer,
             })
         }
