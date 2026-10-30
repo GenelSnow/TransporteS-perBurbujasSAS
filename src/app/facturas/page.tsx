@@ -37,6 +37,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 
+
 const GASTOS_DEFAULT = ["Comida", "Hotel", "ACPM", "Parqueo", "Lavado"]
 
 type GastoItem = {
@@ -103,6 +104,10 @@ export default function FacturasPage() {
             es_predefinido: true,
         }))
     )
+
+    //owner
+
+    const [esOwner, setEsOwner] = useState(false)
 
     // Pago del responsable
     const [pagoResponsable, setPagoResponsable] = useState(0)
@@ -173,19 +178,23 @@ export default function FacturasPage() {
         const {
             data: { user },
         } = await supabase.auth.getUser()
+
         if (!user) {
             router.push("/login")
             return
         }
 
-
         const { data: profile } = await supabase
             .from("profiles")
-            .select("full_name")
+            .select("full_name, role")
             .eq("id", user.id)
             .single()
 
         setNombreUsuario(profile?.full_name || user.email?.split("@")[0] || "")
+
+        // Variable local (no uses el state aquí: setState es asíncrono)
+        const owner = profile?.role === "owner"
+        setEsOwner(owner)
 
         const { data: listaConductores } = await supabase
             .from("conductores")
@@ -208,12 +217,18 @@ export default function FacturasPage() {
             setNombreUsuario(`${conductor.nombres} ${conductor.apellidos}`)
         }
 
-        const { data, error } = await supabase
+        // Una sola consulta de facturas
+        let query = supabase
             .from("facturas_viaje")
             .select("*")
-            .eq("created_by", user.id)
             .order("created_at", { ascending: false })
-            .limit(50)
+            .limit(100)
+
+        if (!owner) {
+            query = query.eq("created_by", user.id)
+        }
+
+        const { data: facturas, error } = await query
 
         if (error) {
             console.error("Error cargando facturas:", error)
@@ -222,7 +237,7 @@ export default function FacturasPage() {
             })
             setRegistros([])
         } else {
-            setRegistros((data || []) as Registro[])
+            setRegistros((facturas || []) as Registro[])
         }
 
         setLoading(false)
