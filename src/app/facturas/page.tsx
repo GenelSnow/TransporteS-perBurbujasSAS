@@ -109,6 +109,8 @@ export default function FacturasPage() {
 
     const [esOwner, setEsOwner] = useState(false)
 
+
+
     // Pago del responsable
     const [pagoResponsable, setPagoResponsable] = useState(0)
     const [pagoResponsableInput, setPagoResponsableInput] = useState("")
@@ -356,6 +358,24 @@ export default function FacturasPage() {
         }
 
         toast.success("Factura guardada", { description: numero })
+
+        // Buscar dueños
+        const { data: owners } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("role", "owner")
+
+        if (owners?.length) {
+            await supabase.from("notificaciones").insert(
+                owners.map((o) => ({
+                    user_id: o.id,
+                    titulo: "Nueva factura",
+                    mensaje: `${nombreUsuario || "Un usuario"} creó ${numero} (Bus ${numeroBus})`,
+                    tipo: "factura",
+                    link: "/facturas",
+                }))
+            )
+        }
 
         // Exportar
         try {

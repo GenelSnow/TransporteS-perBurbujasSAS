@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FileText, User, LogOut, Home, ChevronDown } from "lucide-react"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
+import { CampanaNotificaciones } from "@/components/notificaciones-campana"
 
 export function Header() {
   const router = useRouter()
@@ -20,6 +21,7 @@ export function Header() {
   const [displayName, setDisplayName] = useState("")
   const [loading, setLoading] = useState(true)
   const [esOwner, setEsOwner] = useState(false)
+  
 
   useEffect(() => {
     const supabase = createClient()
@@ -86,6 +88,8 @@ export function Header() {
                 <FileText className="h-5 w-5 shrink-0" />
                 <span>Facturas</span>
               </button>
+
+              {user && <CampanaNotificaciones />}
 
               {/* Menú cuenta: pocas opciones, letras grandes */}
               <DropdownMenu>
