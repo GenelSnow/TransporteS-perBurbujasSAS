@@ -899,6 +899,11 @@ export default function FacturasPage() {
                                         ? `${facturaActual.origen || "—"} - ${facturaActual.destino || "—"}`
                                         : "—"}
                                 </p>
+                                {esOwner && facturaActual.responsable_nombre && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Por: {facturaActual.responsable_nombre}
+                                    </p>
+                                )}
                             </div>
                         </div>
                         <div className="text-right">
