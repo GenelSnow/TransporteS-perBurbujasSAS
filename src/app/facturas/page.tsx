@@ -899,11 +899,6 @@ export default function FacturasPage() {
                                         ? `${facturaActual.origen || "—"} - ${facturaActual.destino || "—"}`
                                         : "—"}
                                 </p>
-                                {esOwner && facturaActual.responsable_nombre && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Por: {facturaActual.responsable_nombre}
-                                    </p>
-                                )}
                             </div>
                         </div>
                         <div className="text-right">
@@ -990,7 +985,22 @@ export default function FacturasPage() {
     if (vista === "lista") {
         return (
             <div className="container mx-auto px-4 py-10 max-w-4xl">
+                <div className="mb-6">
+                    <h1 className="text-3xl font-semibold tracking-tight">
+                        {esOwner ? "Todas las facturas" : "Mis facturas"}
+                    </h1>
+                    <p className="text-muted-foreground mt-1">
+                        {esOwner ? (
+                            <>
+                                Cuenta de dueño · <span className="font-medium text-foreground">{nombreUsuario}</span>
+                            </>
+                        ) : (
+                            <>Hola, {nombreUsuario}</>
+                        )}
+                    </p>
+                </div>
                 <div className="flex items-center justify-between mb-8">
+
                     <div>
                         <h1 className="text-3xl font-semibold tracking-tight">
                             Facturas / Gastos de viaje
@@ -1023,6 +1033,12 @@ export default function FacturasPage() {
                                         <> · {r.origen || "—"} - {r.destino || "—"}</>
                                     )}
                                 </p>
+                                {/* Nombre de quien la hizo — solo si eres owner */}
+                                {esOwner && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Por: {r.responsable_nombre || "Sin nombre"}
+                                    </p>
+                                )}
                             </div>
                             <div className="text-right text-sm">
                                 <p>
