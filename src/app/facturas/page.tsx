@@ -365,16 +365,31 @@ export default function FacturasPage() {
             .select("id")
             .eq("role", "owner")
 
-        if (owners?.length) {
+        const ownerIds = (owners || []).map((o) => o.id)
+
+        if (ownerIds.length) {
+            // 1) Notificación en app (campanita) — como ya tenías
             await supabase.from("notificaciones").insert(
-                owners.map((o) => ({
-                    user_id: o.id,
+                ownerIds.map((id) => ({
+                    user_id: id,
                     titulo: "Nueva factura",
-                    mensaje: `${nombreUsuario || "Un usuario"} creó ${numero} (Bus ${numeroBus})`,
+                    mensaje: `${nombreUsuario} creó ${numero}`,
                     tipo: "factura",
                     link: "/facturas",
                 }))
             )
+
+            // 2) Push del sistema
+            await fetch("/api/push/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userIds: ownerIds,
+                    title: "Nueva factura",
+                    body: `${nombreUsuario} creó ${numero} (Bus ${numeroBus})`,
+                    url: "/facturas",
+                }),
+            })
         }
 
         // Exportar
